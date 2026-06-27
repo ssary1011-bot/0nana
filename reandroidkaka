@@ -1,0 +1,479 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  Link2, Users, MessageCircle, MessageSquare, Globe, ShoppingBag,
+  MoreHorizontal, Lock, Box, Smartphone, Upload, X, Palette, Image as ImageIcon,
+} from "lucide-react";
+
+/* =========================================================================
+   팔레트 (기존 카카오테마메이커 :root 변수와 동일하게 맞춤)
+   ========================================================================= */
+const P = {
+  bg: "#f6f3ee", paper: "#fffdf9", ink: "#252220", ink2: "#6e655c", ink3: "#a89c8d",
+  line: "#e7ddcf", line2: "#d9cbae", accent: "#3f6e5a", accent2: "#2c5142",
+  accentSoft: "#e3eee7", red: "#c0504d",
+};
+
+/* =========================================================================
+   1) 데이터 정의 — 예전엔 color-item 하나당 5~7줄짜리 HTML이 80번 가까이
+      복붙되어 있었습니다. 이제는 "데이터" 한 줄로 끝나고, 실제 마크업은
+      <ColorItem>/<ImageSlot> 컴포넌트 하나가 전부 책임집니다.
+   ========================================================================= */
+const TABS = [
+  { key: "common", label: "공통", icon: Link2 },
+  { key: "friend", label: "친구", icon: Users },
+  { key: "chat", label: "채팅", icon: MessageCircle },
+  { key: "chatroom", label: "채팅방", icon: MessageSquare },
+  { key: "openchat", label: "오픈채팅", icon: Globe },
+  { key: "shopping", label: "쇼핑", icon: ShoppingBag },
+  { key: "more", label: "더보기", icon: MoreHorizontal },
+  { key: "lock", label: "잠금화면", icon: Lock },
+  { key: "etc", label: "기타", icon: Box },
+];
+
+const COLOR_GROUPS = {
+  common: [
+    {
+      title: "메인 텍스트 (theme_*)",
+      fields: [
+        { id: "header-text", label: "헤더 타이틀", def: "#1a1a1a" },
+        { id: "section-title-color", label: "섹션 타이틀", def: "#1a1a1a" },
+        { id: "main-text-color", label: "이름(타이틀) 색상", def: "#1a1a1a" },
+        { id: "main-text-pressed-color", label: "이름(타이틀) 프레스", def: "#1a1a1a" },
+        { id: "last-msg-color", label: "마지막 메시지", def: "#999999" },
+        { id: "last-msg-pressed-color", label: "마지막 메시지 프레스", def: "#999999" },
+        { id: "status-msg-color", label: "상태메시지", def: "#999999" },
+        { id: "status-msg-pressed-color", label: "상태메시지 프레스", def: "#999999" },
+      ],
+    },
+    {
+      title: "배경 / 셀 (theme_*)",
+      fields: [
+        { id: "main-bg-color", label: "기본 배경색", def: "#ffffff", alpha: true },
+        { id: "header-cell-color", label: "헤더 셀 배경", def: "#ffffff", alpha: true },
+        { id: "body-cell-color", label: "리스트 셀 배경", def: "#ffffff", alpha: true },
+        { id: "body-cell-pressed-color", label: "리스트 셀 프레스", def: "#f2f2f2", alpha: true },
+        { id: "body-cell-border-color", label: "리스트 셀 보더", def: "#000000", alpha: true },
+        { id: "body-secondary-cell-color", label: "발견/더보기 셀 배경", def: "#ffffff", alpha: true },
+      ],
+    },
+    {
+      title: "탭바",
+      fields: [
+        { id: "tabbar-bg-color", label: "탭바(3,4탭) 배경", def: "#ffffff", alpha: true },
+        { id: "tab-light-badge-color", label: "탭 배지(밝은 배경용)", def: "#ff3b30" },
+        { id: "badge-bg-color", label: "탭 배너 배지 배경", def: "#ff3b30", alpha: true },
+      ],
+    },
+  ],
+  chatroom: [
+    {
+      title: "채팅방",
+      fields: [
+        { id: "chatroom-bg-color", label: "채팅방 배경색", def: "#b2c4de" },
+        { id: "bubble-mine-bg-color", label: "보낸 말풍선 배경", def: "#fae100" },
+        { id: "bubble-other-bg-color", label: "받은 말풍선 배경", def: "#ffffff" },
+        { id: "bubble-mine-text-color", label: "보낸 말풍선 텍스트", def: "#1a1a1a" },
+        { id: "bubble-other-text-color", label: "받은 말풍선 텍스트", def: "#1a1a1a" },
+        { id: "chat-input-text-color", label: "입력창 텍스트", def: "#1a1a1a" },
+        { id: "chat-input-bg-color", label: "입력창 배경", def: "#ffffff", alpha: true },
+      ],
+    },
+  ],
+  shopping: [
+    {
+      title: "쇼핑 — 버튼 색상 (theme_feature_primary_*)",
+      fields: [
+        { id: "feature-primary-color", label: "버튼 텍스트(선물하기 등)", def: "#1a1a1a" },
+        { id: "feature-primary-pressed-color", label: "버튼 텍스트 프레스", def: "#666666" },
+      ],
+    },
+  ],
+  openchat: [
+    {
+      title: "오픈채팅 — Browse 3탭 (theme_feature_browse_tab_*)",
+      fields: [
+        { id: "feature-browse-tab-color", label: "Browse 3탭 기본", def: "#aaaaaa" },
+        { id: "feature-browse-tab-focused-color", label: "Browse 3탭 선택", def: "#1a1a1a" },
+      ],
+    },
+  ],
+  lock: [
+    {
+      title: "잠금화면",
+      fields: [
+        { id: "lock-text-color", label: "텍스트", def: "#ffffff" },
+        { id: "lock-bg-color", label: "배경", def: "#000000", alpha: true },
+      ],
+    },
+  ],
+};
+
+const IMAGE_GROUPS = {
+  common: [
+    {
+      title: "배경 이미지",
+      slots: [
+        { id: "main-bg", label: "메인 배경", size: "1440×2880 · PNG", badge: "비어있음" },
+        { id: "tabbar-bg", label: "탭바 배경", size: "1442×214 · .9.PNG", badge: "선택사항" },
+        { id: "lock-bg", label: "잠금 배경", size: "1440×1440 · PNG", badge: "선택사항" },
+        { id: "splash", label: "스플래시", size: "1440×2560 · PNG", badge: "선택사항" },
+      ],
+    },
+    {
+      title: "친구 기본 프로필",
+      slots: [
+        { id: "profile-1", label: "기본 프로필 1", size: "240×240 · PNG", badge: "선택사항" },
+        { id: "profile-2", label: "기본 프로필 2", size: "240×240 · PNG", badge: "선택사항" },
+        { id: "profile-3", label: "기본 프로필 3", size: "240×240 · PNG", badge: "선택사항" },
+        { id: "addfriend", label: "친구추가", size: "126×102 · PNG", badge: "선택사항" },
+      ],
+    },
+  ],
+  etc: [
+    {
+      title: "테마 아이콘",
+      slots: [
+        { id: "app-icon", label: "테마 아이콘(런처)", size: "512×512 · PNG", badge: "선택사항" },
+      ],
+    },
+    {
+      title: "기본 탭 아이콘",
+      slots: [
+        { id: "ico-friends", label: "친구", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-friends-f", label: "친구(활성)", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-chats", label: "채팅", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-chats-f", label: "채팅(활성)", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-shopping", label: "쇼핑", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-shopping-f", label: "쇼핑(활성)", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-more", label: "더보기", size: "114×114 · PNG", badge: "비어있음" },
+        { id: "ico-more-f", label: "더보기(활성)", size: "114×114 · PNG", badge: "비어있음" },
+      ],
+    },
+    {
+      title: "선택적 탭 아이콘 (통화 · 오픈채팅 · 피코마)",
+      slots: [
+        { id: "ico-call", label: "통화", size: "114×114 · PNG", badge: "선택사항" },
+        { id: "ico-openchat", label: "오픈채팅", size: "114×114 · PNG", badge: "선택사항" },
+        { id: "ico-piccoma", label: "피코마", size: "114×114 · PNG", badge: "선택사항" },
+      ],
+    },
+  ],
+};
+
+/* =========================================================================
+   2) 재사용 컴포넌트
+   ========================================================================= */
+
+function HexText({ value, onCommit }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => {
+    const v = text.trim();
+    if (/^#?[0-9a-fA-F]{6}$/.test(v)) onCommit(v.startsWith("#") ? v : "#" + v);
+    else setText(value);
+  };
+  return (
+    <input
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && commit()}
+      style={{
+        width: 62, fontSize: 10, color: P.ink3, fontFamily: "monospace",
+        border: "none", background: "transparent", outline: "none",
+      }}
+    />
+  );
+}
+
+/** 색상 항목 한 줄: 스와치 + 라벨 + hex텍스트 + (옵션)투명도 슬라이더 + 네이티브 컬러피커
+ *  -- 예전엔 이 한 줄이 7줄짜리 HTML(.color-item)로 80곳 가까이 중복돼 있었음 */
+function ColorItem({ field, value, alpha, onColor, onAlpha }) {
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+        background: P.paper, border: `1px solid ${P.line}`, borderRadius: 10,
+      }}
+    >
+      <label
+        style={{
+          width: 22, height: 22, borderRadius: "50%", border: `2px solid ${P.line2}`,
+          background: value, flexShrink: 0, cursor: "pointer", position: "relative",
+        }}
+      >
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onColor(e.target.value)}
+          style={{ opacity: 0, width: "100%", height: "100%", cursor: "pointer" }}
+        />
+      </label>
+      <span style={{ fontSize: 12, fontWeight: 700, color: P.ink, flex: 1 }}>{field.label}</span>
+      <HexText value={value} onCommit={onColor} />
+      {field.alpha && (
+        <input
+          type="range" min={0} max={100} value={alpha}
+          onChange={(e) => onAlpha(Number(e.target.value))}
+          title="투명도"
+          style={{ width: 50, accentColor: P.accent }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 색상 그룹: 제목 + ColorItem 목록 (필드 배열만 바꾸면 어떤 그룹이든 생성됨) */
+function ColorGroup({ title, fields, colors, alphas, onColor, onAlpha }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div
+        style={{
+          fontSize: 11, fontWeight: 800, color: P.accent2, marginBottom: 8,
+          borderLeft: `3px solid ${P.accent}`, paddingLeft: 8,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+        {fields.map((f) => (
+          <ColorItem
+            key={f.id}
+            field={f}
+            value={colors[f.id] ?? f.def}
+            alpha={alphas[f.id] ?? 100}
+            onColor={(v) => onColor(f.id, v)}
+            onAlpha={(v) => onAlpha(f.id, v)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 이미지 업로드 슬롯 하나
+ *  -- 예전엔 .img-slot 마크업(라벨+썸네일+사이즈+뱃지+x버튼)이 30곳 넘게 중복돼 있었음 */
+function ImageSlot({ field, image, onUpload, onClear }) {
+  const inputRef = useRef(null);
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+        background: P.paper, border: `1px solid ${P.line}`, borderRadius: 10, position: "relative",
+      }}
+    >
+      <button
+        onClick={() => inputRef.current?.click()}
+        style={{
+          width: 40, height: 40, borderRadius: 8, background: P.bg, border: `1px solid ${P.line}`,
+          display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+          flexShrink: 0, cursor: "pointer",
+        }}
+        title="클릭해서 업로드"
+      >
+        {image ? (
+          <img src={image.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <ImageIcon size={16} color={P.ink3} />
+        )}
+      </button>
+      <input
+        ref={inputRef} type="file" accept="image/*" style={{ display: "none" }}
+        onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: P.ink }}>{field.label}</div>
+        <div style={{ fontSize: 10, color: P.ink3 }}>{field.size}</div>
+      </div>
+      <span
+        style={{
+          fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 7,
+          background: image ? P.accentSoft : P.bg, color: image ? P.accent2 : P.ink3, flexShrink: 0,
+        }}
+      >
+        {image ? "업로드됨" : field.badge}
+      </span>
+      {image && (
+        <button
+          onClick={onClear}
+          style={{
+            width: 18, height: 18, borderRadius: "50%", border: "none", background: P.line,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
+          }}
+        >
+          <X size={11} color={P.ink} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** 이미지 섹션: 제목 + ImageSlot 그리드 */
+function ImgSection({ title, slots, images, onUpload, onClear }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: P.accent2, marginBottom: 8 }}>{title}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+        {slots.map((s) => (
+          <ImageSlot
+            key={s.id}
+            field={s}
+            image={images[s.id]}
+            onUpload={(file) => onUpload(s.id, file)}
+            onClear={() => onClear(s.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 미리보기 — colors/images state를 그대로 받아서 실시간으로 반영 (목업이 아니라 실제 연동) */
+function PhonePreview({ colors, images }) {
+  const c = (id, fallback) => colors[id] ?? fallback;
+  const friends = [
+    { name: "카카오프렌즈", msg: "안녕하세요" },
+    { name: "라이언", msg: "오늘 날씨 좋다" },
+    { name: "어피치", msg: "음악 듣는 중" },
+  ];
+  return (
+    <div
+      style={{
+        width: 230, borderRadius: 30, background: "#15171a", padding: 9,
+        boxShadow: "0 24px 48px rgba(37,34,32,.25)", margin: "0 auto",
+      }}
+    >
+      <div
+        style={{
+          width: "100%", height: 420, borderRadius: 20, overflow: "hidden",
+          display: "flex", flexDirection: "column",
+          background: images["main-bg"] ? `url(${images["main-bg"].url}) center/cover` : c("main-bg-color", "#ffffff"),
+        }}
+      >
+        <div style={{ height: 26, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px", fontSize: 10, fontWeight: 700 }}>
+          <span>15:02</span><span>5G 🔋</span>
+        </div>
+        <div style={{ padding: "6px 14px", background: c("header-cell-color", "#ffffff") }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: c("header-text", "#1a1a1a") }}>친구</div>
+        </div>
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          {friends.map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: c("body-cell-color", "#ffffff") }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: ["#f5c4d3", "#bfe0ef", "#cdeccb"][i], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
+                {["🌸", "😊", "🎵"][i]}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: c("main-text-color", "#1a1a1a") }}>{f.name}</div>
+                <div style={{ fontSize: 9, color: c("status-msg-color", "#999999") }}>{f.msg}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div
+          style={{
+            height: 40, display: "flex", alignItems: "center", justifyContent: "space-around",
+            background: images["tabbar-bg"] ? `url(${images["tabbar-bg"].url}) center/cover` : c("tabbar-bg-color", "#ffffff"),
+            borderTop: `1px solid ${P.line}`, fontSize: 8, color: P.ink3,
+          }}
+        >
+          {["친구", "채팅", "오픈채팅", "쇼핑", "더보기"].map((t) => <span key={t}>{t}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   3) 메인 앱 — 위 컴포넌트들을 데이터로만 조립
+   ========================================================================= */
+export default function ThemeMaker() {
+  const [tab, setTab] = useState("common");
+  const [colors, setColors] = useState({});
+  const [alphas, setAlphas] = useState({});
+  const [images, setImages] = useState({});
+
+  const setColor = (id, v) => setColors((p) => ({ ...p, [id]: v }));
+  const setAlpha = (id, v) => setAlphas((p) => ({ ...p, [id]: v }));
+  const upload = (id, file) => setImages((p) => ({ ...p, [id]: { url: URL.createObjectURL(file), name: file.name } }));
+  const clear = (id) => setImages((p) => { const n = { ...p }; delete n[id]; return n; });
+
+  const colorGroups = COLOR_GROUPS[tab] || [];
+  const imageGroups = IMAGE_GROUPS[tab] || [];
+  const totalFields = Object.values(COLOR_GROUPS).flat().reduce((a, g) => a + g.fields.length, 0);
+  const totalSlots = Object.values(IMAGE_GROUPS).flat().reduce((a, g) => a + g.slots.length, 0);
+
+  return (
+    <div style={{ background: P.bg, minHeight: "100vh", fontFamily: "'Noto Sans KR', sans-serif", color: P.ink }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
+          <Palette size={18} color={P.accent} />
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>테마 메이커 · React 리팩토링</h1>
+        </div>
+        <p style={{ fontSize: 12, color: P.ink2, marginBottom: 20 }}>
+          색상 항목 {totalFields}개 + 이미지 슬롯 {totalSlots}개를 전부{" "}
+          <code style={{ background: P.line, padding: "1px 5px", borderRadius: 4 }}>&lt;ColorItem /&gt;</code> /{" "}
+          <code style={{ background: P.line, padding: "1px 5px", borderRadius: 4 }}>&lt;ImageSlot /&gt;</code> 두 컴포넌트 하나로 렌더링합니다.
+        </p>
+
+        {/* 탭 */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, padding: "7px 12px",
+                  borderRadius: 18, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
+                  background: active ? P.ink : P.paper, color: active ? P.paper : P.ink2,
+                  boxShadow: active ? "none" : `inset 0 0 0 1px ${P.line}`,
+                }}
+              >
+                <Icon size={13} /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24, alignItems: "start" }}>
+          {/* 미리보기 */}
+          <div style={{ position: "sticky", top: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: P.ink2, marginBottom: 10 }}>
+              <Smartphone size={13} /> 미리보기 (실시간 반영)
+            </div>
+            <PhonePreview colors={colors} images={images} />
+          </div>
+
+          {/* 편집 영역 */}
+          <div>
+            {colorGroups.length === 0 && imageGroups.length === 0 && (
+              <div style={{ fontSize: 12, color: P.ink3, padding: 20, textAlign: "center" }}>
+                이 탭은 "공통" 항목을 그대로 사용해요. 별도 설정이 없습니다.
+              </div>
+            )}
+
+            {colorGroups.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>🎨 색상 편집</div>
+                {colorGroups.map((g) => (
+                  <ColorGroup key={g.title} {...g} colors={colors} alphas={alphas} onColor={setColor} onAlpha={setAlpha} />
+                ))}
+              </div>
+            )}
+
+            {imageGroups.length > 0 && (
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>🖼 이미지 리소스</div>
+                {imageGroups.map((g) => (
+                  <ImgSection key={g.title} {...g} images={images} onUpload={upload} onClear={clear} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
